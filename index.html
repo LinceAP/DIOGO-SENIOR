@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Coloque sua foto na moldura</title>
+<style>
+  /* ======================================================
+     CONFIGURAÇÃO RÁPIDA — troque aqui as cores da campanha
+     ====================================================== */
+  :root{
+    --color-bg: #071a33;       /* fundo da página */
+    --color-panel: #0d2a52;    /* fundo dos cartões */
+    --color-primary: #0288c6;  /* cor de destaque / botão principal (azul da moldura) */
+    --color-primary-dark: #005ba2;
+    --color-text: #f3f7fa;
+    --color-text-dim: #9fb6d1;
+    --color-border: #163c68;
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height:100vh;
+  }
+  .wrap{
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  header{ text-align:center; margin-bottom:22px; }
+  header h1{
+    font-size: 22px; margin:0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  header p{
+    margin:0; color: var(--color-text-dim); font-size: 14px; line-height:1.5;
+  }
+
+  /* ---- Etapa 1: upload ---- */
+  #uploadStage{
+    width:100%;
+    border: 2px dashed var(--color-border);
+    border-radius: 18px;
+    padding: 40px 20px;
+    text-align:center;
+    background: var(--color-panel);
+  }
+  #uploadStage svg{ width:40px; height:40px; margin-bottom:10px; opacity:.8; }
+  #uploadStage p{ color: var(--color-text-dim); font-size:13px; margin: 6px 0 18px; }
+
+  /* ---- Etapa 2: editor ---- */
+  #editorStage{ display:none; width:100%; flex-direction:column; align-items:center; }
+
+  .canvas-frame{
+    position:relative;
+    width: 100%;
+    max-width: 340px;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    overflow:hidden;
+    background: #05101c;
+    touch-action: none;
+    cursor: grab;
+    box-shadow: 0 0 0 1px var(--color-border), 0 10px 30px rgba(0,0,0,.4);
+  }
+  .canvas-frame:active{ cursor: grabbing; }
+  .canvas-frame canvas{ width:100%; height:100%; display:block; }
+
+  .controls{ width:100%; max-width:340px; margin-top:18px; }
+  .controls label{
+    display:block; font-size:12px; color:var(--color-text-dim);
+    margin-bottom:6px; text-transform:uppercase; letter-spacing:.04em;
+  }
+  input[type="range"]{
+    width:100%; accent-color: var(--color-primary);
+  }
+
+  .actions{
+    width:100%; max-width:340px;
+    display:flex; flex-direction:column; gap:10px;
+    margin-top: 22px;
+  }
+
+  button{
+    font: inherit; cursor:pointer; border:none; border-radius: 12px;
+    padding: 14px 18px; font-size:15px; font-weight:600;
+  }
+  .btn-primary{
+    background: var(--color-primary); color:#04222c;
+  }
+  .btn-primary:active{ background: var(--color-primary-dark); }
+  .btn-ghost{
+    background: transparent; color: var(--color-text-dim);
+    border: 1px solid var(--color-border);
+  }
+
+  input[type="file"]{ display:none; }
+
+  footer{
+    margin-top: 34px; text-align:center;
+    color: var(--color-text-dim); font-size:12px; line-height:1.6;
+  }
+  footer .brand-logo{
+    display:block;
+    max-width: 170px;
+    margin: 0 auto 10px;
+  }
+  footer .credit{
+    font-size: 11px;
+    color: var(--color-text-dim);
+    opacity:.7;
+  }
+
+  .toast{
+    position: fixed; left:50%; bottom: 24px; transform: translateX(-50%);
+    background: var(--color-primary); color:#04222c; font-weight:600;
+    padding: 12px 18px; border-radius: 10px; font-size:14px;
+    opacity:0; pointer-events:none; transition: opacity .25s ease;
+  }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Coloque sua foto na moldura</h1>
+    <p>Carregue sua foto, ajuste o enquadramento e baixe pronta para usar como foto de perfil no WhatsApp, Instagram e Facebook.</p>
+  </header>
+
+  <!-- ETAPA 1: escolher foto -->
+  <div id="uploadStage">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+      <path d="M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5M7 9l5-5 5 5M12 4v13" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <p>Escolha uma foto do seu rosto, de preferência bem iluminada e centralizada.</p>
+    <button class="btn-primary" id="chooseBtn">Carregar Foto</button>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <!-- ETAPA 2: editor -->
+  <div id="editorStage">
+    <div class="canvas-frame">
+      <canvas id="canvas" width="1080" height="1080"></canvas>
+    </div>
+
+    <div class="controls">
+      <label for="zoom">Aproximar / Afastar</label>
+      <input type="range" id="zoom" min="0" max="100" value="0">
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="downloadBtn">Baixar Foto</button>
+      <button class="btn-ghost" id="changeBtn">Trocar foto</button>
+    </div>
+  </div>
+
+  <footer>
+    Arraste a foto para posicionar dentro do círculo.<br>
+    A imagem final sai em 1080 × 1080px — ideal para WhatsApp, Instagram e Facebook.
+    <img class="brand-logo" src="logo-diogo.png" alt="Diogo Senior - Deputado Estadual" style="margin-top:26px;">
+    <div class="credit">Feito por @davisscreator</div>
+  </footer>
+</div>
+
+<div class="toast" id="toast">Foto baixada!</div>
+
+<script>
+(function(){
+  const CANVAS_SIZE = 1080;          // tamanho final do PNG
+  const FRAME_URL = "frame.png";     // coloque um arquivo frame.png (1080x1080, com buraco transparente no meio)
+                                      // na mesma pasta do index.html para usar a moldura real da campanha.
+                                      // Enquanto ele não existir, uma moldura de exemplo é desenhada automaticamente.
+
+  const uploadStage = document.getElementById('uploadStage');
+  const editorStage  = document.getElementById('editorStage');
+  const fileInput    = document.getElementById('fileInput');
+  const chooseBtn    = document.getElementById('chooseBtn');
+  const changeBtn    = document.getElementById('changeBtn');
+  const downloadBtn  = document.getElementById('downloadBtn');
+  const zoomSlider   = document.getElementById('zoom');
+  const canvas       = document.getElementById('canvas');
+  const ctx          = canvas.getContext('2d');
+  const toast        = document.getElementById('toast');
+
+  let photo = null;          // Image do usuário
+  let frameImg = null;       // Image da moldura real (se existir)
+  let frameReady = false;    // true quando já sabemos se frame.png existe ou não
+  let minScale = 1, scale = 1, offsetX = 0, offsetY = 0;
+  let dragging = false, lastX = 0, lastY = 0;
+
+  // ---------- Carrega a moldura real, com fallback para o placeholder ----------
+  function loadFrame(){
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => { frameImg = img; frameReady = true; resolve(); };
+      img.onerror = () => { frameImg = null; frameReady = true; resolve(); };
+      img.src = FRAME_URL;
+    });
+  }
+  loadFrame();
+
+  function drawPlaceholderFrame(){
+    const cx = CANVAS_SIZE/2, cy = CANVAS_SIZE/2;
+    const outerR = CANVAS_SIZE/2;
+    const innerR = outerR - 56;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, 0, Math.PI*2);
+    ctx.arc(cx, cy, innerR, 0, Math.PI*2, true);
+    ctx.fillStyle = 'rgba(0,184,217,0.95)';
+    ctx.fill('evenodd');
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, innerR, 0, Math.PI*2);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.stroke();
+    ctx.restore();
+
+    // aviso de que isso é só um exemplo
+    ctx.save();
+    ctx.font = '600 26px -apple-system, sans-serif';
+    ctx.fillStyle = 'rgba(4,34,44,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.translate(cx, CANVAS_SIZE - 30);
+    ctx.fillText('MOLDURA DE EXEMPLO', 0, 0);
+    ctx.restore();
+  }
+
+  function drawFrame(){
+    if(frameImg){
+      ctx.drawImage(frameImg, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    } else {
+      drawPlaceholderFrame();
+    }
+  }
+
+  // ---------- Upload ----------
+  chooseBtn.addEventListener('click', () => fileInput.click());
+  changeBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        photo = img;
+        initPhoto();
+        uploadStage.style.display = 'none';
+        editorStage.style.display = 'flex';
+        render();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function initPhoto(){
+    // "cover": a foto preenche todo o canvas sem deixar vãos
+    minScale = Math.max(CANVAS_SIZE / photo.width, CANVAS_SIZE / photo.height);
+    scale = minScale;
+    offsetX = (CANVAS_SIZE - photo.width * scale) / 2;
+    offsetY = (CANVAS_SIZE - photo.height * scale) / 2;
+    zoomSlider.value = 0;
+  }
+
+  function clampOffsets(){
+    const w = photo.width * scale, h = photo.height * scale;
+    const minX = CANVAS_SIZE - w, maxX = 0;
+    const minY = CANVAS_SIZE - h, maxY = 0;
+    offsetX = Math.min(maxX, Math.max(minX, offsetX));
+    offsetY = Math.min(maxY, Math.max(minY, offsetY));
+  }
+
+  function render(){
+    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    if(photo){
+      ctx.drawImage(photo, offsetX, offsetY, photo.width * scale, photo.height * scale);
+    }
+    drawFrame();
+  }
+
+  // ---------- Zoom ----------
+  zoomSlider.addEventListener('input', () => {
+    if(!photo) return;
+    const t = zoomSlider.value / 100;         // 0 -> 1
+    const maxScale = minScale * 3;
+    const cx = CANVAS_SIZE/2, cy = CANVAS_SIZE/2;
+    const imgCx = (cx - offsetX) / scale, imgCy = (cy - offsetY) / scale; // mantém o centro fixo ao dar zoom
+    scale = minScale + (maxScale - minScale) * t;
+    offsetX = cx - imgCx * scale;
+    offsetY = cy - imgCy * scale;
+    clampOffsets();
+    render();
+  });
+
+  // ---------- Arrastar (mouse e toque) ----------
+  const frameEl = document.querySelector('.canvas-frame');
+
+  function getPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (clientX - rect.left) * (CANVAS_SIZE / rect.width),
+      y: (clientY - rect.top) * (CANVAS_SIZE / rect.height)
+    };
+  }
+
+  function onDown(e){
+    if(!photo) return;
+    dragging = true;
+    const p = getPos(e);
+    lastX = p.x; lastY = p.y;
+  }
+  function onMove(e){
+    if(!dragging || !photo) return;
+    e.preventDefault();
+    const p = getPos(e);
+    offsetX += (p.x - lastX);
+    offsetY += (p.y - lastY);
+    lastX = p.x; lastY = p.y;
+    clampOffsets();
+    render();
+  }
+  function onUp(){ dragging = false; }
+
+  frameEl.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+
+  frameEl.addEventListener('touchstart', onDown, {passive:true});
+  frameEl.addEventListener('touchmove', onMove, {passive:false});
+  frameEl.addEventListener('touchend', onUp);
+
+  // ---------- Baixar ----------
+  downloadBtn.addEventListener('click', () => {
+    if(!photo) return;
+    render(); // garante que o frame mais atual (real ou placeholder) está desenhado
+    const link = document.createElement('a');
+    link.download = 'minha-foto-perfil.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 1800);
+  });
+
+})();
+</script>
+</body>
+</html>
