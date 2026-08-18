@@ -343,17 +343,40 @@
   frameEl.addEventListener('touchmove', onMove, {passive:false});
   frameEl.addEventListener('touchend', onUp);
 
-  // ---------- Baixar ----------
+  // ---------- Baixar / Salvar ----------
   downloadBtn.addEventListener('click', () => {
     if(!photo) return;
     render(); // garante que o frame mais atual (real ou placeholder) está desenhado
-    const link = document.createElement('a');
-    link.download = 'minha-foto-perfil.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
 
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 1800);
+    canvas.toBlob(async (blob) => {
+      if(!blob) return;
+      const file = new File([blob], 'minha-foto-perfil.png', { type: 'image/png' });
+
+      // Celular (principalmente iPhone): usa o menu nativo de compartilhar,
+      // que tem a opção "Salvar Imagem" direto na galeria. No Android também funciona.
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Minha foto de perfil' });
+          return;
+        } catch (err) {
+          if (err && err.name === 'AbortError') return; // usuário cancelou, tudo bem
+          // qualquer outro erro cai para o método abaixo
+        }
+      }
+
+      // Computador / navegadores sem suporte a compartilhar arquivos: baixa direto
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = 'minha-foto-perfil.png';
+      link.href = url;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1800);
+    }, 'image/png');
   });
 
 })();
